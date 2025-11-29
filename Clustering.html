@@ -1,0 +1,698 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Кластеризатор</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; color: #334155; }
+        
+        .custom-scroll::-webkit-scrollbar { height: 10px; width: 10px; }
+        .custom-scroll::-webkit-scrollbar-track { background: #f1f5f9; }
+        .custom-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 5px; border: 2px solid #f1f5f9; }
+        .custom-scroll::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        
+        .matrix-cell { transition: all 0.2s; }
+        .matrix-cell:hover { transform: scale(1.05); z-index: 10; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); position: relative; }
+        
+        canvas { width: 100% !important; height: 100% !important; }
+    </style>
+</head>
+<body class="bg-slate-50 min-h-screen flex flex-col">
+
+    <header class="bg-white border-b border-slate-200 sticky top-0 z-50 shadow-sm">
+        <div class="max-w-full mx-auto px-6 h-16 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <div class="bg-indigo-600 text-white p-1.5 rounded-lg font-bold text-lg">UK</div>
+                <h1 class="text-xl font-bold text-slate-800 hidden sm:block">Кластеризатор</h1>
+            </div>
+            <div class="flex gap-2">
+                 <button onclick="loadScenario('laptops')" class="text-xs bg-slate-100 hover:bg-slate-200 px-3 py-1 rounded">Приклад: Ноутбуки</button>
+                 <button onclick="loadScenario('agro')" class="text-xs bg-slate-100 hover:bg-slate-200 px-3 py-1 rounded">Приклад: Агро</button>
+            </div>
+        </div>
+    </header>
+
+    <main class="flex-grow w-full max-w-[1600px] mx-auto p-4 sm:p-6 space-y-8">
+
+        <section class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+            <div class="flex justify-between items-center mb-4">
+                <div>
+                    <h2 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+                        <span class="bg-indigo-100 text-indigo-700 w-6 h-6 rounded-full flex items-center justify-center text-xs">1</span>
+                        Редактор Даних
+                    </h2>
+                </div>
+                <div class="flex gap-2">
+                    <button onclick="addColumn()" class="bg-indigo-50 text-indigo-700 hover:bg-indigo-100 px-3 py-1.5 rounded-lg text-xs font-medium transition">+ Стовпець</button>
+                    <button onclick="addRow()" class="bg-emerald-50 text-emerald-700 hover:bg-emerald-100 px-3 py-1.5 rounded-lg text-xs font-medium transition">+ Рядок</button>
+                </div>
+            </div>
+
+            <div class="overflow-x-auto custom-scroll border rounded-xl shadow-inner bg-slate-50" style="max-height: 500px;">
+                <table class="w-full text-sm text-left border-collapse relative min-w-[800px]">
+                    <thead class="bg-slate-100 text-slate-700 sticky top-0 z-20 shadow-sm">
+                        <tr id="headerRow">
+                            </tr>
+                        <tr id="weightsRow" class="bg-slate-50 border-b">
+                            </tr>
+                    </thead>
+                    <tbody id="dataTableBody" class="bg-white divide-y divide-slate-100">
+                        </tbody>
+                </table>
+            </div>
+
+            <div class="mt-6 flex justify-center">
+                <button onclick="runAnalysis()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-3 rounded-xl font-bold shadow-lg shadow-indigo-200 transform transition hover:-translate-y-1 flex items-center gap-2">
+                    Розрахувати та Побудувати
+                </button>
+            </div>
+        </section>
+
+        <section id="resultsSection" class="hidden space-y-8 animate-fade-in">
+            
+            <div class="grid xl:grid-cols-2 gap-8">
+                
+                <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 flex flex-col h-[500px]">
+                    <h2 class="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
+                        <span class="bg-emerald-100 text-emerald-700 w-6 h-6 rounded-full flex items-center justify-center text-xs">2</span>
+                        Матриця Відстаней
+                    </h2>
+                    <div class="flex-grow overflow-auto custom-scroll border rounded-lg relative">
+                        <table class="w-full text-xs text-center border-collapse">
+                            <thead class="bg-slate-100 sticky top-0 z-10">
+                                <tr id="matrixHeader"></tr>
+                            </thead>
+                            <tbody id="matrixBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 flex flex-col h-[500px]">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+                            <span class="bg-orange-100 text-orange-700 w-6 h-6 rounded-full flex items-center justify-center text-xs">3</span>
+                            2D Візуалізація
+                        </h2>
+                        <div class="flex gap-2 text-xs">
+                            <select id="xAxisSelect" onchange="updateChartAxes()" class="border rounded p-1 bg-slate-50"></select>
+                            <select id="yAxisSelect" onchange="updateChartAxes()" class="border rounded p-1 bg-slate-50"></select>
+                        </div>
+                    </div>
+                    <div class="flex-grow relative w-full h-full">
+                        <canvas id="clusterChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+                <div class="flex flex-col md:flex-row gap-6">
+                    <div class="md:w-1/3 space-y-4">
+                        <h2 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+                            <span class="bg-blue-100 text-blue-700 w-6 h-6 rounded-full flex items-center justify-center text-xs">4</span>
+                            Процес
+                        </h2>
+                        <div class="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-3">
+                            <button onclick="nextStep()" id="btnStep" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition shadow-sm flex items-center justify-center gap-2">
+                                Наступний крок
+                            </button>
+                            <div class="flex gap-2">
+                                <button onclick="autoRun()" class="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-700 py-2 rounded-lg transition text-sm">Авто</button>
+                                <button onclick="resetClustering()" class="px-4 bg-white border border-slate-300 hover:bg-red-50 text-slate-600 rounded-lg transition">↺</button>
+                            </div>
+                        </div>
+                        <div class="bg-slate-900 rounded-lg p-3 font-mono text-xs text-green-400 h-[200px] overflow-y-auto custom-scroll shadow-inner" id="clusterLog">
+                            <div>> Очікування...</div>
+                        </div>
+                    </div>
+
+                    <div class="md:w-2/3">
+                        <h3 class="font-bold text-slate-700 mb-4">Поточний склад груп:</h3>
+                        <div id="groupsDisplay" class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 flex flex-col">
+                <div class="flex justify-between items-end mb-4 border-b border-slate-100 pb-2">
+                    <div>
+                        <h2 class="text-xl font-bold text-slate-800 flex items-center gap-2">
+                            <span class="bg-rose-100 text-rose-700 w-8 h-8 rounded-full flex items-center justify-center text-sm">5</span>
+                            Дендрограма
+                        </h2>
+                        <p class="text-sm text-slate-500 mt-1">Графік показує історію об'єднання та відстань.</p>
+                    </div>
+                </div>
+                
+                <div class="flex-grow relative border border-slate-100 rounded-lg bg-slate-50 overflow-hidden p-4 h-[600px]">
+                    <canvas id="dendroCanvas"></canvas>
+                </div>
+            </div>
+
+        </section>
+    </main>
+
+    <script>
+        const branchColors = [
+            '#2563eb', // Blue
+            '#dc2626', // Red
+            '#16a34a', // Green
+            '#d97706', // Amber
+            '#9333ea', // Purple
+            '#db2777', // Pink
+            '#0891b2', // Cyan
+            '#4f46e5', // Indigo
+            '#ea580c', // Orange
+            '#059669'  // Emerald
+        ];
+
+        const scenarios = {
+            laptops: {
+                columns: [
+                    { id: 'c1', name: 'Ціна ($)', weight: 0.3 },
+                    { id: 'c2', name: 'RAM (GB)', weight: 0.1 },
+                    { id: 'c3', name: 'SSD (GB)', weight: 0.1 },
+                    { id: 'c4', name: 'CPU (GHz)', weight: 0.1 },
+                    { id: 'c5', name: 'Вага (kg)', weight: 0.2 },
+                    { id: 'c6', name: 'Батарея (h)', weight: 0.2 }
+                ],
+                data: [
+                    { name: "Acer Aspire 5", c1: 550, c2: 8, c3: 256, c4: 2.4, c5: 1.8, c6: 7 },
+                    { name: "HP Pavilion 15", c1: 620, c2: 8, c3: 512, c4: 2.6, c5: 1.75, c6: 6.5 },
+                    { name: "Lenovo IdeaPad 3", c1: 480, c2: 4, c3: 256, c4: 2.1, c5: 1.85, c6: 6 },
+                    { name: "Dell XPS 13", c1: 1200, c2: 16, c3: 512, c4: 3.2, c5: 1.2, c6: 10 },
+                    { name: "MacBook Air M1", c1: 999, c2: 8, c3: 256, c4: 3.2, c5: 1.29, c6: 15 },
+                    { name: "Asus ROG Strix", c1: 1400, c2: 16, c3: 1024, c4: 3.8, c5: 2.4, c6: 5 },
+                    { name: "MSI Katana GF66", c1: 1150, c2: 16, c3: 512, c4: 3.6, c5: 2.25, c6: 4.5 },
+                    { name: "Lenovo Legion 5", c1: 1300, c2: 16, c3: 1024, c4: 3.8, c5: 2.4, c6: 5.5 },
+                    { name: "HP Stream 11", c1: 250, c2: 4, c3: 64, c4: 1.1, c5: 1.05, c6: 8 },
+                    { name: "Asus VivoBook 15", c1: 700, c2: 12, c3: 512, c4: 2.8, c5: 1.7, c6: 7 }
+                ]
+            },
+            agro: {
+                columns: [
+                    { id: 'c1', name: 'Прибуток', weight: 0.4 },
+                    { id: 'c2', name: 'Якість %', weight: 0.3 },
+                    { id: 'c3', name: 'Виробіток', weight: 0.2 },
+                    { id: 'c4', name: 'Фонди', weight: 0.1 }
+                ],
+                data: [
+                    { name: "Підприємство 1", c1: 3.338, c2: 78.46, c3: 5.013, c4: 7.312 },
+                    { name: "Підприємство 2", c1: 1.909, c2: 50.83, c3: 3.423, c4: 17.785 },
+                    { name: "Підприємство 3", c1: 6.653, c2: 26.12, c3: 3.314, c4: 21.544 },
+                    { name: "Підприємство 4", c1: 2.105, c2: 72.11, c3: 2.534, c4: 8.125 },
+                    { name: "Підприємство 5", c1: 6.178, c2: 13.70, c3: 1.863, c4: 1.780 }
+                ]
+            }
+        };
+
+        let state = {
+            columns: [],
+            data: [],
+            normalizedData: [],
+            clusters: [],
+            history: [],
+            step: 0,
+            active: false
+        };
+
+        let chartInstance = null;
+
+        function loadScenario(key) {
+            state.columns = JSON.parse(JSON.stringify(scenarios[key].columns));
+            state.data = JSON.parse(JSON.stringify(scenarios[key].data));
+            renderEditor();
+            document.getElementById('resultsSection').classList.add('hidden');
+        }
+
+        function renderEditor() {
+            const headerRow = document.getElementById('headerRow');
+            let headerHTML = `<th class="p-3 border-b border-r bg-slate-100 min-w-[200px] sticky left-0 z-30 text-xs font-bold uppercase">Назва об'єкту</th>`;
+            headerHTML += state.columns.map((col, idx) => `
+                <th class="p-2 border-b border-r bg-slate-100 min-w-[120px] group relative">
+                    <div class="flex flex-col gap-1">
+                        <input type="text" value="${col.name}" onchange="updateColumn(${idx}, 'name', this.value)"
+                               class="bg-transparent font-bold text-slate-700 w-full focus:outline-none focus:border-b border-blue-500 text-xs text-center">
+                        <button onclick="removeColumn(${idx})" class="absolute top-1 right-1 text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition px-1 text-xs">×</button>
+                    </div>
+                </th>`).join('');
+            headerHTML += `<th class="p-3 border-b bg-slate-100 w-10"></th>`;
+            headerRow.innerHTML = headerHTML;
+
+            const weightsRow = document.getElementById('weightsRow');
+            let weightsHTML = `<th class="p-2 border-r text-right text-xs text-slate-400 font-normal sticky left-0 bg-slate-50 z-30">Вага (0.0-1.0):</th>`;
+            weightsHTML += state.columns.map((col, idx) => `
+                <td class="p-2 border-r bg-slate-50">
+                    <input type="number" step="0.1" min="0" max="1" value="${col.weight}"
+                           onchange="updateColumn(${idx}, 'weight', this.value)"
+                           class="w-full bg-white border border-slate-200 rounded px-1 py-0.5 text-xs text-center focus:ring-1 focus:ring-blue-500">
+                </td>`).join('');
+            weightsHTML += `<th class="bg-slate-50"></th>`;
+            weightsRow.innerHTML = weightsHTML;
+
+            const tbody = document.getElementById('dataTableBody');
+            tbody.innerHTML = state.data.map((row, rIdx) => `
+                <tr class="hover:bg-slate-50 group transition">
+                    <td class="p-2 border-r bg-white sticky left-0 z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
+                        <input type="text" value="${row.name}" onchange="updateRow(${rIdx}, 'name', this.value)"
+                               class="w-full bg-transparent font-medium text-slate-800 focus:outline-none focus:border-b border-blue-500 text-sm">
+                    </td>
+                    ${state.columns.map(col => `
+                        <td class="p-2 border-r text-center">
+                            <input type="number" value="${row[col.id] || 0}" onchange="updateRow(${rIdx}, '${col.id}', this.value)"
+                                   class="w-full text-center bg-transparent text-slate-600 focus:outline-none focus:bg-white focus:ring-1 focus:ring-blue-500 rounded px-1">
+                        </td>`).join('')}
+                    <td class="p-2 text-center">
+                         <button onclick="removeRow(${rIdx})" class="text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition font-bold">×</button>
+                    </td>
+                </tr>`).join('');
+        }
+
+        function addColumn() {
+            const newId = 'c' + (Math.random().toString(36).substr(2, 9));
+            state.columns.push({ id: newId, name: 'Нова', weight: 0.1 });
+            state.data.forEach(row => row[newId] = 0);
+            renderEditor();
+        }
+        function removeColumn(idx) {
+            if (state.columns.length <= 1) return alert("Потрібна мінімум 1 колонка");
+            const colId = state.columns[idx].id;
+            state.columns.splice(idx, 1);
+            state.data.forEach(row => delete row[colId]);
+            renderEditor();
+        }
+        function addRow() {
+            const newRow = { name: "Новий об'єкт" };
+            state.columns.forEach(col => newRow[col.id] = 0);
+            state.data.push(newRow);
+            renderEditor();
+        }
+        function removeRow(idx) {
+            if (state.data.length <= 2) return alert("Потрібно мінімум 2 об'єкти");
+            state.data.splice(idx, 1);
+            renderEditor();
+        }
+        function updateColumn(idx, field, value) {
+            state.columns[idx][field] = field === 'weight' ? parseFloat(value) : value;
+            if(field === 'name') updateChartAxesSelectors(); 
+        }
+        function updateRow(idx, field, value) {
+            state.data[idx][field] = field === 'name' ? value : parseFloat(value);
+        }
+
+        function runAnalysis() {
+            if (state.data.length < 2) return alert("Недостатньо даних");
+
+            const stats = {};
+            state.columns.forEach(col => {
+                const values = state.data.map(d => d[col.id]);
+                const mean = values.reduce((a,b) => a+b, 0) / values.length;
+                const variance = values.reduce((a,b) => a + Math.pow(b-mean, 2), 0) / (values.length - 1 || 1);
+                stats[col.id] = { mean, std: Math.sqrt(variance) || 1 };
+            });
+
+            state.normalizedData = state.data.map((row, i) => {
+                const normRow = { _originalIndex: i, name: row.name };
+                state.columns.forEach(col => {
+                    normRow[col.id] = (row[col.id] - stats[col.id].mean) / stats[col.id].std;
+                });
+                return normRow;
+            });
+
+            renderFullMatrix();
+            calculateClusteringHistory();
+            drawDendrogram();
+            
+            state.clusters = state.data.map((_, i) => [i]);
+            state.step = 0;
+            state.active = true;
+            
+            const logEl = document.getElementById('clusterLog');
+            if(logEl) logEl.innerHTML = `<div>> Аналіз запущено. ${state.data.length} об'єктів.</div>`;
+            
+            renderGroups();
+            updateChartAxesSelectors();
+            initChart();
+
+            const resSection = document.getElementById('resultsSection');
+            resSection.classList.remove('hidden');
+            resSection.scrollIntoView({ behavior: 'smooth' });
+        }
+
+        function getDist(idx1, idx2) {
+            const r1 = state.normalizedData[idx1];
+            const r2 = state.normalizedData[idx2];
+            let sum = 0;
+            state.columns.forEach(col => {
+                sum += col.weight * Math.pow(r1[col.id] - r2[col.id], 2);
+            });
+            return Math.sqrt(sum);
+        }
+
+        function renderFullMatrix() {
+            const thead = document.getElementById('matrixHeader');
+            const tbody = document.getElementById('matrixBody');
+            
+            thead.innerHTML = `<th class="p-2 border bg-slate-100 sticky left-0 z-20">ID</th>` + 
+                              state.data.map((_, i) => `<th class="p-2 border bg-slate-50 font-mono text-xs w-12 text-slate-500">${i+1}</th>`).join('');
+
+            tbody.innerHTML = state.data.map((r1, i) => {
+                let cells = `<td class="p-2 border bg-slate-50 font-bold text-xs sticky left-0 z-10" title="${r1.name}">${i+1}</td>`;
+                state.data.forEach((r2, j) => {
+                    if (i === j) cells += `<td class="p-2 border bg-slate-100 text-slate-300">-</td>`;
+                    else {
+                        const dist = getDist(i, j);
+                        const intensity = Math.min(dist / 3, 1); 
+                        const hue = ((1 - intensity) * 120).toString(10);
+                        const bg = `hsla(${hue}, 70%, 90%, 1)`;
+                        cells += `<td class="p-2 border matrix-cell cursor-default" style="background-color: ${bg}" title="${r1.name} <-> ${r2.name}">${dist.toFixed(2)}</td>`;
+                    }
+                });
+                return `<tr>${cells}</tr>`;
+            }).join('');
+        }
+
+        function calculateClusteringHistory() {
+            let simClusters = state.data.map((_, i) => ({ 
+                id: `leaf-${i}`, indices: [i], height: 0, label: state.data[i].name, x: i, children: []
+            }));
+            state.history = [];
+            while (simClusters.length > 1) {
+                let minD = Infinity;
+                let mergeIdx = [-1, -1];
+                for (let i = 0; i < simClusters.length; i++) {
+                    for (let j = i + 1; j < simClusters.length; j++) {
+                        let distAB = Infinity;
+                        simClusters[i].indices.forEach(idxA => {
+                            simClusters[j].indices.forEach(idxB => {
+                                const d = getDist(idxA, idxB);
+                                if (d < distAB) distAB = d;
+                            });
+                        });
+                        if (distAB < minD) { minD = distAB; mergeIdx = [i, j]; }
+                    }
+                }
+                const [idx1, idx2] = mergeIdx;
+                const c1 = simClusters[idx1];
+                const c2 = simClusters[idx2];
+                const newNode = {
+                    indices: [...c1.indices, ...c2.indices],
+                    height: minD, label: "", x: (c1.x + c2.x) / 2, children: [c1, c2]
+                };
+                state.history.push(newNode);
+                simClusters.splice(idx2, 1);
+                simClusters.splice(idx1, 1);
+                simClusters.push(newNode);
+            }
+        }
+
+        function drawDendrogram(highlightDist = -1) {
+            const canvas = document.getElementById('dendroCanvas');
+            if(!canvas) return;
+            const ctx = canvas.getContext('2d');
+            const parent = canvas.parentNode;
+            const dpr = window.devicePixelRatio || 1;
+            const rect = parent.getBoundingClientRect();
+            
+            canvas.width = rect.width * dpr;
+            canvas.height = rect.height * dpr;
+            canvas.style.width = `${rect.width}px`;
+            canvas.style.height = `${rect.height}px`;
+            ctx.scale(dpr, dpr);
+            
+            const w = rect.width;
+            const h = rect.height;
+            const padding = { top: 40, bottom: 130, left: 60, right: 40 };
+            
+            ctx.clearRect(0, 0, w, h);
+
+            if (state.history.length === 0) return;
+
+            const root = state.history[state.history.length - 1];
+            const maxDist = Math.max(root.height * 1.15, 0.1); 
+            const mapX = (logicX) => padding.left + (logicX / (state.data.length - 1)) * (w - padding.left - padding.right);
+            const mapY = (dist) => h - padding.bottom - (dist / maxDist) * (h - padding.bottom - padding.top);
+
+            ctx.beginPath();
+            ctx.strokeStyle = '#f1f5f9';
+            ctx.lineWidth = 1;
+            for (let i = 0; i <= 5; i++) {
+                const val = (maxDist * i / 5);
+                const y = mapY(val);
+                ctx.moveTo(padding.left, y);
+                ctx.lineTo(w - padding.right, y);
+                ctx.fillStyle = '#94a3b8';
+                ctx.textAlign = 'right';
+                ctx.font = '10px monospace';
+                ctx.fillText(val.toFixed(2), padding.left - 8, y + 3);
+            }
+            ctx.stroke();
+
+            function getNodeColor(node) {
+                if (highlightDist < 0) return '#64748b';
+                if (node.height > highlightDist + 0.0001) return '#cbd5e1';
+                
+                const leaderIndex = node.indices[0]; 
+                return branchColors[leaderIndex % branchColors.length];
+            }
+
+            function drawNode(node, parentColor) {
+                const screenX = mapX(node.x);
+                const screenY = mapY(node.height);
+                
+                const myColor = getNodeColor(node);
+                const drawColor = (myColor === '#cbd5e1') ? null : myColor;
+
+                if (node.children && node.children.length > 0) {
+                    const c1 = node.children[0];
+                    const c2 = node.children[1];
+                    const x1 = mapX(c1.x);
+                    const y1 = mapY(c1.height);
+                    const x2 = mapX(c2.x);
+                    const y2 = mapY(c2.height);
+
+                    const color1 = drawColor || getNodeColor(c1);
+                    const color2 = drawColor || getNodeColor(c2);
+
+                    ctx.lineWidth = 2;
+                    ctx.lineJoin = 'round';
+                    ctx.translate(0.5, 0.5); 
+
+                    ctx.beginPath();
+                    ctx.strokeStyle = color1;
+                    ctx.moveTo(x1, y1);
+                    ctx.lineTo(x1, screenY);
+                    ctx.stroke();
+
+                    ctx.beginPath();
+                    ctx.strokeStyle = color2;
+                    ctx.moveTo(x2, y2);
+                    ctx.lineTo(x2, screenY);
+                    ctx.stroke();
+
+                    ctx.beginPath();
+                    ctx.strokeStyle = color1;
+                    ctx.moveTo(x1, screenY);
+                    ctx.lineTo(screenX, screenY);
+                    ctx.stroke();
+
+                    ctx.beginPath();
+                    ctx.strokeStyle = color2;
+                    ctx.moveTo(screenX, screenY);
+                    ctx.lineTo(x2, screenY);
+                    ctx.stroke();
+                    
+                    ctx.beginPath();
+                    ctx.fillStyle = '#64748b';
+                    ctx.arc(screenX, screenY, 3, 0, 2*Math.PI);
+                    ctx.fill();
+
+                    ctx.translate(-0.5, -0.5);
+
+                    if (node.height > 0.01) {
+                        const distLabel = node.height.toFixed(3);
+                        ctx.font = 'bold 10px Inter';
+                        const textWidth = ctx.measureText(distLabel).width;
+                        
+                        ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+                        ctx.fillRect(screenX - textWidth/2 - 2, screenY - 12, textWidth + 4, 10);
+                        
+                        ctx.fillStyle = '#ef4444';
+                        ctx.textAlign = 'center';
+                        ctx.fillText(distLabel, screenX, screenY - 4);
+                    }
+
+                    drawNode(c1, color1);
+                    drawNode(c2, color2);
+                } else {
+                    ctx.save();
+                    ctx.translate(screenX, h - padding.bottom + 15);
+                    ctx.rotate(-Math.PI / 4);
+                    
+                    ctx.fillStyle = parentColor || (highlightDist > -1 ? getNodeColor(node) : '#334155');
+                    ctx.font = '600 11px Inter';
+                    ctx.textAlign = 'right';
+                    ctx.fillText(node.label, 0, 0);
+                    
+                    ctx.restore();
+                }
+            }
+            
+            drawNode(root, null);
+
+            if (highlightDist > 0) {
+                const yCut = mapY(highlightDist);
+                ctx.beginPath();
+                ctx.setLineDash([5, 5]);
+                ctx.strokeStyle = '#10b981';
+                ctx.lineWidth = 1.5;
+                ctx.moveTo(padding.left, yCut);
+                ctx.lineTo(w - padding.right, yCut);
+                ctx.stroke();
+                ctx.setLineDash([]);
+                ctx.fillStyle = '#10b981';
+                ctx.font = 'bold 12px Inter';
+                ctx.textAlign = 'right';
+                ctx.fillText(`Поріг: ${highlightDist.toFixed(3)}`, w - padding.right, yCut - 8);
+            }
+        }
+
+        function nextStep() {
+            if (state.clusters.length <= 1) {
+                log("Кластеризацію завершено!", "text-emerald-400 font-bold");
+                state.active = false;
+                drawDendrogram(state.history[state.history.length-1].height + 0.1); 
+                return false;
+            }
+
+            let minD = Infinity;
+            let mergeIndices = [-1, -1];
+
+            for (let i = 0; i < state.clusters.length; i++) {
+                for (let j = i + 1; j < state.clusters.length; j++) {
+                    let distAB = Infinity;
+                    state.clusters[i].forEach(idxA => {
+                        state.clusters[j].forEach(idxB => {
+                            const d = getDist(idxA, idxB);
+                            if (d < distAB) distAB = d;
+                        });
+                    });
+                    if (distAB < minD) { minD = distAB; mergeIndices = [i, j]; }
+                }
+            }
+
+            state.step++;
+            const [idx1, idx2] = mergeIndices;
+            
+            drawDendrogram(minD);
+
+            const c1 = state.clusters[idx1];
+            const c2 = state.clusters[idx2];
+            const n1 = c1.length > 1 ? `Група [${c1.length}]` : state.data[c1[0]].name;
+            const n2 = c2.length > 1 ? `Група [${c2.length}]` : state.data[c2[0]].name;
+            log(`Крок ${state.step}: Об'єднання "${n1.substring(0,10)}.." та "${n2.substring(0,10)}.." (d=${minD.toFixed(3)})`);
+
+            const newCluster = [...c1, ...c2];
+            state.clusters.splice(idx2, 1);
+            state.clusters.splice(idx1, 1);
+            state.clusters.push(newCluster);
+
+            renderGroups();
+            updateChart();
+            return true;
+        }
+
+        function renderGroups() {
+            const container = document.getElementById('groupsDisplay');
+            container.innerHTML = state.clusters.map((cluster, i) => {
+                const colorHex = branchColors[cluster[0] % branchColors.length];
+                const list = cluster.map(idx => `<li>• ${state.data[idx].name}</li>`).join('');
+                
+                return `
+                    <div class="border rounded-lg p-4 shadow-sm bg-white transition-all duration-300" style="border-left: 4px solid ${colorHex}">
+                        <div class="flex justify-between items-center mb-2">
+                            <span class="font-bold text-slate-700 text-sm">Кластер ${i+1}</span>
+                            <span class="bg-slate-100 px-2 py-0.5 rounded text-xs border shadow-sm">${cluster.length} об.</span>
+                        </div>
+                        <ul class="text-xs text-slate-600 space-y-1 max-h-32 overflow-y-auto custom-scroll font-medium">${list}</ul>
+                    </div>`;
+            }).join('');
+        }
+
+        function autoRun() {
+            const timer = setInterval(() => { if (!nextStep() || state.clusters.length <= 1) clearInterval(timer); }, 600);
+        }
+        function resetClustering() {
+            state.clusters = state.data.map((_, i) => [i]);
+            state.step = 0;
+            state.active = true;
+            document.getElementById('clusterLog').innerHTML = `<div>> Скинуто.</div>`;
+            drawDendrogram(0);
+            renderGroups();
+            updateChart();
+        }
+        function log(msg, cls = "") {
+            const el = document.getElementById('clusterLog');
+            if(el) el.innerHTML = `<div class="border-b border-slate-700 pb-1 mb-1 ${cls}">${msg}</div>` + el.innerHTML;
+        }
+
+        function updateChartAxesSelectors() {
+            const xSelect = document.getElementById('xAxisSelect');
+            const ySelect = document.getElementById('yAxisSelect');
+            const options = state.columns.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+            const prevX = xSelect.value;
+            const prevY = ySelect.value;
+            xSelect.innerHTML = options;
+            ySelect.innerHTML = options;
+            if (state.columns.length > 0) xSelect.value = prevX || state.columns[0].id;
+            if (state.columns.length > 1) ySelect.value = prevY || state.columns[1].id;
+        }
+
+        function initChart() {
+            const ctx = document.getElementById('clusterChart').getContext('2d');
+            if (chartInstance) chartInstance.destroy();
+            chartInstance = new Chart(ctx, {
+                type: 'scatter',
+                data: { datasets: [] },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: { legend: { display: false }, tooltip: { callbacks: { label: (ctx) => `${ctx.raw.label} (${ctx.raw.x.toFixed(2)}, ${ctx.raw.y.toFixed(2)})` } } },
+                    scales: { x: { title: { display: true, text: 'X' }, grid: { color: '#f1f5f9' } }, y: { title: { display: true, text: 'Y' }, grid: { color: '#f1f5f9' } } }
+                }
+            });
+            updateChart();
+        }
+
+        function updateChartAxes() { updateChart(); }
+
+        function updateChart() {
+            if (!chartInstance) return;
+            const xColId = document.getElementById('xAxisSelect').value;
+            const yColId = document.getElementById('yAxisSelect').value;
+            chartInstance.options.scales.x.title.text = state.columns.find(c => c.id === xColId)?.name || 'X';
+            chartInstance.options.scales.y.title.text = state.columns.find(c => c.id === yColId)?.name || 'Y';
+
+            const datasets = state.clusters.map((cluster, i) => {
+                const color = branchColors[cluster[0] % branchColors.length];
+                return {
+                    label: `Cluster ${i+1}`,
+                    data: cluster.map(idx => ({
+                        x: state.normalizedData[idx][xColId],
+                        y: state.normalizedData[idx][yColId],
+                        label: state.data[idx].name
+                    })),
+                    backgroundColor: color, pointRadius: 6, pointHoverRadius: 8
+                };
+            });
+            chartInstance.data.datasets = datasets;
+            chartInstance.update();
+        }
+
+        loadScenario('laptops');
+        window.addEventListener('resize', () => { if(state.history.length) drawDendrogram(); });
+    </script>
+</body>
+</html>
